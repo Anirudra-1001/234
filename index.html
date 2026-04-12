@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Event Permission System</title>
+<style>
+:root{--bg:#f8fafc;--card:#fff;--text:#0f172a;--muted:#64748b;--line:#e2e8f0;--primary:#2563eb;--success:#16a34a;--warning:#f59e0b;--danger:#dc2626}
+*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:var(--bg);color:var(--text);transition:all .3s}
+.header{background:#0f172a;color:#fff;padding:20px 0;position:sticky;top:0;z-index:100}
+.wrap{max-width:1200px;margin:auto;padding:0 16px}
+.role-selector{display:flex;gap:12px;justify-content:center;margin:20px 0;padding:12px;background:var(--card);border-radius:16px;box-shadow:0 4px 12px rgba(0,0,0,.1);max-width:500px;margin:auto}
+.role-btn{padding:12px 24px;border:2px solid var(--line);border-radius:12px;font-weight:700;cursor:pointer;flex:1;transition:all .2s;font-size:16px}
+.role-btn.active{border-color:var(--primary);background:var(--primary);color:#fff}.role-btn:hover{transform:translateY(-1px)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:24px;margin:20px 0;box-shadow:0 8px 24px rgba(15,23,42,.06)}
+h1,h2,h3,p{margin:0 0 16px 0}.muted{color:var(--muted)}
+input,textarea{width:100%;padding:12px;border:1px solid var(--line);border-radius:12px;margin-bottom:12px;box-sizing:border-box}
+button{border:none;padding:12px 20px;border-radius:12px;font-weight:700;cursor:pointer;transition:all .2s}
+.primary{background:var(--primary);color:#fff;width:100%;margin-top:8px}.approve{background:var(--success);color:#fff}.reject{background:var(--danger);color:#fff}.ghost{background:#e2e8f0}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin:20px 0}.stat{padding:16px;border:1px solid var(--line);border-radius:16px;background:#f8fafc;text-align:center}
+.list{display:grid;gap:16px}.item{border:1px solid var(--line);border-radius:18px;padding:20px;transition:all .2s}.item:hover{box-shadow:0 4px 12px rgba(0,0,0,.1);transform:translateY(-2px)}
+.meta{display:grid;gap:8px;font-size:14px;color:var(--muted);margin:12px 0}.pill{padding:8px 12px;border-radius:999px;font-size:12px;font-weight:700}
+.Pending{background:#fef3c7;color:#92400e}.Approved{background:#dcfce7;color:#166534}.Rejected{background:#fee2e2;color:#991b1b}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}.status-bar{padding:16px;border-radius:12px;margin:20px 0;text-align:center}
+.status-bar.Pending{background:#fef3c7}.status-bar.Approved{background:#dcfce7}
+.layout{display:grid;grid-template-columns:1fr;gap:24px}@media(min-width:1000px){.layout{grid-template-columns:400px 1fr}}
+.hidden{display:none}
+@media(max-width:768px){.role-selector{flex-direction:column}}
+</style>
+</head>
+<body>
+<header class='header'>
+    <div class='wrap'>
+        <div style='display:flex;justify-content:space-between;align-items:center'>
+            <div>
+                <h1>🎉 Event Permission System</h1>
+                <p class='muted' style='color:#cbd5e1;margin:0'>Professional Dashboard</p>
+            </div>
+            <div class='pill Approved'>Live Sync 🔄</div>
+        </div>
+    </div>
+</header>
+
+<div class='wrap'>
+    <!-- Role Selector -->
+    <div class='role-selector'>
+        <button class='role-btn active' onclick='switchRole("user")'>
+            👤 User Dashboard
+        </button>
+        <button class='role-btn' onclick='switchRole("admin")'>
+            👨‍💼 Admin Dashboard
+        </button>
+    </div>
+
+    <!-- USER DASHBOARD -->
+    <div id='userDashboard' class='layout'>
+        <!-- User Form -->
+        <div class='card'>
+            <h2>➕ Submit New Request</h2>
+            <input id='eventName' placeholder='Event Name *'>
+            <input id='organizer' placeholder='Your Name *'>
+            <input id='email' type='email' placeholder='Your Email *'>
+            <input id='chairs' type='number' placeholder='Chairs Needed *' min='1'>
+            <input id='venue' placeholder='Venue *'>
+            <textarea id='description' placeholder='Description (optional)' style='height:80px'></textarea>
+            <button class='primary' onclick='submitRequest()'>📤 Send to Admin</button>
+        </div>
+
+        <!-- User Requests -->
+        <div class='card'>
+            <div class='status-bar Pending' id='userStatus'>
+                <h3>🔄 Loading your requests...</h3>
+            </div>
+            <h2>My Requests <span id='userCount' class='pill'>(0)</span></h2>
+            <div id='userRequests' class='list'></div>
+        </div>
+    </div>
+
+    <!-- ADMIN DASHBOARD -->
+    <div id='adminDashboard' class='layout hidden'>
+        <!-- Admin Stats -->
+        <div class='card'>
+            <h2>📊 Statistics</h2>
+            <div class='stats'>
+                <div class='stat'><h3 id='total'>0</h3><p>Total</p></div>
+                <div class='stat'><h3 id='pending'>0</h3><p>Pending</p></div>
+                <div class='stat'><h3 id='approved'>0</h3><p>Approved</p></div>
+                <div class='stat'><h3 id='rejected'>0</h3><p>Rejected</p></div>
+            </div>
+            <button class='ghost' onclick='syncData()'>🔄 Refresh</button>
+        </div>
+
+        <!-- Admin Requests -->
+        <div class='card'>
+            <h2>📋 All Requests</h2>
+            <div id='adminRequests' class='list'></div>
+        </div>
+    </div>
+</div>
+
+<script>
+let requests = [], myRequests = [], currentRole = 'user', userId = localStorage.getItem('userId') || 'user_' + Date.now();
+
+localStorage.setItem('userId', userId);
+
+function switchRole(role) {
+    currentRole = role;
+    
+    // Update buttons
+    document.querySelectorAll('.role-btn').forEach(btn => btn.classList.remove('active'));
+    event.target.classList.add('active');
+    
+    // Show/hide dashboards
+    document.getElementById('userDashboard').classList.toggle('hidden', role !== 'user');
+    document.getElementById('adminDashboard').classList.toggle('hidden', role !== 'admin');
+    
+    syncData();
+}
+
+function syncData() {
+    requests = JSON.parse(localStorage.getItem('requests') || '[]');
+    myRequests = requests.filter(r => r.userId === userId);
+    
+    if (currentRole === 'user') {
+        renderUser();
+    } else {
+        renderAdmin();
+    }
+}
+
+function submitRequest() {
+    const eventName = document.getElementById('eventName').value.trim();
+    const organizer = document.getElementById('organizer').value.trim();
+    const email = document.getElementById('email').value.trim();
+    const chairs = document.getElementById('chairs').value;
+    const venue = document.getElementById('venue').value.trim();
+    const description = document.getElementById('description').value.trim();
+
+    if (!eventName || !organizer || !email || !chairs || !venue) {
+        return alert('❌ Fill all * fields');
+    }
+
+    const newRequest = {
+        id: Date.now(),
+        eventName, organizer, email, chairs: parseInt(chairs), venue, description,
+        status: 'Pending', userId, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
+    };
+
+    requests.unshift(newRequest);
+    localStorage.setItem('requests', JSON.stringify(requests));
+    alert('✅ Sent to Admin!');
+    clearForm();
+    syncData();
+}
+
+function clearForm() {
+    ['eventName','organizer','email','chairs','venue','description'].forEach(id => 
+        document.getElementById(id).value = ''
+    );
+}
+
+function renderUser() {
+    document.getElementById('userCount').textContent = `(${myRequests.length})`;
+    
+    const pending = myRequests.filter(r => r.status === 'Pending').length;
+    const statusBar = document.getElementById('userStatus');
+    statusBar.innerHTML = `<h3>${pending} Pending | ${myRequests.length - pending} Completed</h3>`;
+    statusBar.className = `status-bar ${pending > 0 ? 'Pending' : 'Approved'}`;
+
+    document.getElementById('userRequests').innerHTML = myRequests.length ? 
+        myRequests.map(r => `
+            <div class='item'>
+                <div style='display:flex;justify-content:space-between;align-items:start'>
+                    <div>
+                        <h3>${escapeHtml(r.eventName)}</h3>
+                        <span class='pill ${r.status}'>${r.status}</span>
+                    </div>
+                    <div style='text-align:right'>
+                        <div>${new Date(r.updatedAt).toLocaleDateString()}</div>
+                    </div>
+                </div>
+                <div class='meta'>
+                    <div>👤 ${escapeHtml(r.organizer)}</div>
+                    <div>🪑 ${r.chairs} chairs</div>
+                    <div>📍 ${escapeHtml(r.venue)}</div>
+                </div>
+            </div>
+        `).join('') : 
+        '<div class="item" style="text-align:center;color:var(--muted)"><p>No requests yet. Submit one! 📝</p></div>';
+}
+
+function renderAdmin() {
+    // Stats
+    document.getElementById('total').textContent = requests.length;
+    document.getElementById('pending').textContent = requests.filter(r => r.status === 'Pending').length;
+    document.getElementById('approved').textContent = requests.filter(r => r.status === 'Approved').length;
+    document.getElementById('rejected').textContent = requests.filter(r => r.status === 'Rejected').length;
+
+    // Requests
+    document.getElementById('adminRequests').innerHTML = requests.length ? 
+        requests.map(r => `
+            <div class='item'>
+                <div style='display:flex;justify-content:space-between;align-items:center'>
+                    <h3>${escapeHtml(r.eventName)}</h3>
+                    <span class='pill ${r.status}'>${r.status}</span>
+                </div>
+                <div class='meta'>
+                    <div>👤 ${escapeHtml(r.organizer)}</div>
+                    <div>📧 ${escapeHtml(r.email)}</div>
+                    <div>🪑 ${r.chairs} chairs</div>
+                    <div>📍 ${escapeHtml(r.venue)}</div>
+                </div>
+                <div class='actions'>
+                    ${r.status === 'Pending' ? `
+                        <button class='approve' onclick='adminAction(${r.id},"Approved")'>✅ Approve</button>
+                        <button class='reject' onclick='adminAction(${r.id},"Rejected")'>❌ Reject</button>
+                    ` : ''}
+                    <button class='ghost' onclick='adminDelete(${r.id})'>🗑️ Delete</button>
+                </div>
+            </div>
+        `).join('') :
+        '<div class="item" style="text-align:center;color:var(--muted)"><p>No requests yet ⏳</p></div>';
+}
+
+function adminAction(id, status) {
+    requests = requests.map(r => r.id === id ? {
+        ...r, status, updatedAt: new Date().toISOString(), adminAction: `Action: ${status}`
+    } : r);
+    localStorage.setItem('requests', JSON.stringify(requests));
+    syncData();
+}
+
+function adminDelete(id) {
+    if (confirm('Delete?')) {
+        requests = requests.filter(r => r.id !== id);
+        localStorage.setItem('requests', JSON.stringify(requests));
+        syncData();
+    }
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Auto-sync & Init
+setInterval(syncData, 2000);
+window.addEventListener('load', () => {
+    syncData();
+    console.log('🚀 System Ready! UserID:', userId);
+});
+</script>
+</body>
+</html>
