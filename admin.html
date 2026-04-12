@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin - Event Permission System</title>
+<style>
+:root{--bg:#f8fafc;--card:#fff;--text:#0f172a;--muted:#64748b;--line:#e2e8f0;--primary:#2563eb;--success:#16a34a;--danger:#dc2626}
+*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:var(--bg);color:var(--text)}
+.header{background:#0f172a;color:#fff;padding:18px 0}.wrap{max-width:1150px;margin:auto;padding:0 16px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px}.tag{background:#1e293b;padding:8px 12px;border-radius:999px;font-size:12px}
+.layout{display:grid;grid-template-columns:360px 1fr;gap:20px;padding:24px 0}.card{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:20px;box-shadow:0 8px 24px rgba(15,23,42,.06)}
+h1,h2,h3,p{margin:0}.muted{color:var(--muted)}
+button{border:none;padding:11px 14px;border-radius:12px;font-weight:700;cursor:pointer}.approve{background:var(--success);color:#fff}.reject{background:var(--danger);color:#fff}.ghost{background:#e2e8f0;width:100%;margin-top:12px}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}.stat{padding:14px;border:1px solid var(--line);border-radius:16px;background:#f8fafc;text-align:center}
+.list{display:grid;gap:14px}.item{border:1px solid var(--line);border-radius:18px;padding:16px}.meta{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:10px;color:var(--muted);font-size:14px}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.pill{padding:6px 10px;border-radius:999px;font-size:12px;font-weight:700}
+.Pending{background:#fef3c7;color:#92400e}.Approved{background:#dcfce7;color:#166534}.Rejected{background:#fee2e2;color:#991b1b}
+@media(max-width:900px){.layout{grid-template-columns:1fr}.stats{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:600px){.stats,.meta{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header class='header'>
+    <div class='wrap top'>
+        <div>
+            <h1>👨‍💼 Admin Dashboard</h1>
+            <p class='muted' style='color:#cbd5e1'>Event Permission System</p>
+        </div>
+        <div class='tag'>🔒 Secure Admin Portal</div>
+    </div>
+</header>
+
+<div class='wrap'>
+<div class='layout'>
+    <section class='card'>
+        <h2>📊 Quick Stats</h2>
+        <div class='stats'>
+            <div class='stat'><h3 id='total'>0</h3><p>Total</p></div>
+            <div class='stat'><h3 id='pending'>0</h3><p>Pending</p></div>
+            <div class='stat'><h3 id='approved'>0</h3><p>Approved</p></div>
+            <div class='stat'><h3 id='rejected'>0</h3><p>Rejected</p></div>
+        </div>
+        <button class='ghost' onclick='syncData()'>🔄 Refresh</button>
+    </section>
+
+    <section>
+        <div class='card'>
+            <h2>📋 All Requests</h2>
+            <p class='muted' style='margin-bottom:20px'>Review and approve user requests</p>
+            <div id='requestList' class='list'></div>
+        </div>
+    </section>
+</div>
+</div>
+
+<script>
+let requests = [];
+
+const totalEl = document.getElementById('total');
+const pendingEl = document.getElementById('pending');
+const approvedEl = document.getElementById('approved');
+const rejectedEl = document.getElementById('rejected');
+const requestList = document.getElementById('requestList');
+
+function init() {
+    syncData();
+    setInterval(syncData, 2000); // Auto-sync every 2 seconds
+}
+
+function syncData() {
+    requests = JSON.parse(localStorage.getItem('requests') || '[]');
+    updateStats();
+    render();
+}
+
+function updateStats() {
+    totalEl.textContent = requests.length;
+    pendingEl.textContent = requests.filter(r => r.status === 'Pending').length;
+    approvedEl.textContent = requests.filter(r => r.status === 'Approved').length;
+    rejectedEl.textContent = requests.filter(r => r.status === 'Rejected').length;
+}
+
+function approve(id) {
+    requests = requests.map(r => 
+        r.id === id ? { ...r, status: 'Approved', updatedAt: new Date().toISOString() } : r
+    );
+    save();
+}
+
+function reject(id) {
+    requests = requests.map(r => 
+        r.id === id ? { ...r, status: 'Rejected', updatedAt: new Date().toISOString() } : r
+    );
+    save();
+}
+
+function del(id) {
+    if (confirm('Delete this request permanently?')) {
+        requests = requests.filter(r => r.id !== id);
+        save();
+    }
+}
+
+function save() {
+    localStorage.setItem('requests', JSON.stringify(requests));
+    syncData();
+}
+
+function render() {
+    if (requests.length === 0) {
+        requestList.innerHTML = '<p class="muted" style="text-align:center;padding:40px">No requests yet. Users will submit soon! ⏳</p>';
+        return;
+    }
+    
+    requestList.innerHTML = requests.map(r => `
+        <div class='item'>
+            <div style='display:flex;justify-content:space-between;gap:8px;align-items:center'>
+                <h3>${escapeHtml(r.eventName)}</h3>
+                <span class='pill ${r.status}'>${r.status}</span>
+            </div>
+            <div class='meta'>
+                <div><b>User:</b> ${escapeHtml(r.organizer)}</div>
+                <div><b>Email:</b> ${escapeHtml(r.email || 'N/A')}</div>
+                <div><b>Chairs:</b> ${r.chairs}</div>
+                <div><b>Venue:</b> ${escapeHtml(r.venue)}</div>
+                <div><b>ID:</b> ${r.id}</div>
+                <div><b>Submitted:</b> ${new Date(r.createdAt).toLocaleString()}</div>
+                ${r.description ? `<div><b>Notes:</b> ${escapeHtml(r.description)}</div>` : ''}
+            </div>
+            <div class='actions'>
+                ${r.status === 'Pending' ? `
+                    <button class='approve' onclick='approve(${r.id})'>✅ Approve</button>
+                    <button class='reject' onclick='reject(${r.id})'>❌ Reject</button>
+                ` : ''}
+                <button class='ghost' onclick='del(${r.id})'>🗑️ Delete</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Event delegation for safety
+document.addEventListener('click', (e) => {
+    const id = parseInt(e.target.dataset?.id);
+    if (!id) return;
+    
+    if (e.target.classList.contains('approve-btn')) approve(id);
+    if (e.target.classList.contains('reject-btn')) reject(id);
+    if (e.target.classList.contains('delete-btn')) del(id);
+});
+
+init();
+</script>
+</body>
+</html>
