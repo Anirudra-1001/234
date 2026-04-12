@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>User Event Requests</title>
+<style>
+:root{--bg:#f8fafc;--card:#fff;--text:#0f172a;--muted:#64748b;--line:#e2e8f0;--primary:#2563eb;--success:#16a34a;--warning:#f59e0b;--danger:#dc2626}
+*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:var(--bg);color:var(--text)}
+.header{background:#0f172a;color:#fff;padding:18px 0}.wrap{max-width:600px;margin:auto;padding:0 16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:24px;margin:20px 0;box-shadow:0 8px 24px rgba(15,23,42,.06)}
+h1,h2,h3,p{margin:0 0 12px 0}.muted{color:var(--muted)}
+input{width:100%;padding:12px;border:1px solid var(--line);border-radius:12px;margin-bottom:12px}
+button{border:none;padding:12px 20px;border-radius:12px;font-weight:700;cursor:pointer;width:100%;margin-top:8px}
+.primary{background:var(--primary);color:#fff}.success{background:var(--success);color:#fff}
+.list{display:grid;gap:16px;margin-top:24px}.item{border:1px solid var(--line);border-radius:18px;padding:20px}
+.meta{display:grid;gap:8px;font-size:14px;color:var(--muted)}.pill{padding:6px 12px;border-radius:999px;font-size:12px;font-weight:700}
+.Pending{background:#fef3c7;color:#92400e}.Approved{background:#dcfce7;color:#166534}.Rejected{background:#fee2e2;color:#991b1b}
+.status-bar{padding:12px;border-radius:12px;margin:16px 0}.status-bar.Pending{background:#fef3c7}.status-bar.Approved{background:#dcfce7}.status-bar.Rejected{background:#fee2e2}
+@media(max-width:600px){.wrap{padding:0 12px}}
+</style>
+</head>
+<body>
+<header class='header'>
+    <div class='wrap'>
+        <h1>📋 My Event Requests</h1>
+        <p class='muted' style='color:#cbd5e1'>Submit & track your requests</p>
+    </div>
+</header>
+
+<div class='wrap'>
+    <div class='card'>
+        <h2>➕ New Request</h2>
+        <input id='eventName' placeholder='Event Name *'>
+        <input id='organizer' placeholder='Your Full Name *'>
+        <input id='email' type='email' placeholder='Your Email *'>
+        <input id='chairs' type='number' placeholder='Number of Chairs *' min='1'>
+        <input id='venue' placeholder='Venue/Room *'>
+        <textarea id='description' placeholder='Event Description (optional)' style='height:80px;resize:vertical'></textarea>
+        <button class='primary' onclick='submitRequest()'>📤 Send to Admin</button>
+    </div>
+
+    <div class='card'>
+        <div class='status-bar' id='statusBar'>
+            <h3>🔄 Syncing with Admin...</h3>
+        </div>
+        <h2>📊 My Requests (<span id='myCount'>0</span>)</h2>
+        <div id='myRequests' class='list'></div>
+    </div>
+</div>
+
+<script>
+let requests = [], myRequests = [], userId = localStorage.getItem('userId') || 'user_' + Date.now();
+
+function init() {
+    localStorage.setItem('userId', userId);
+    syncData();
+    setInterval(syncData, 3000); // Auto-sync every 3 seconds
+}
+
+function syncData() {
+    requests = JSON.parse(localStorage.getItem('requests') || '[]');
+    myRequests = requests.filter(r => r.userId === userId);
+    updateStatus();
+    renderRequests();
+}
+
+function submitRequest() {
+    const eventName = document.getElementById('eventName').value.trim();
+    const organizer = document.getElementById('organizer').value.trim();
+    const email = document.getElementById('email').value.trim();
+    const chairs = document.getElementById('chairs').value;
+    const venue = document.getElementById('venue').value.trim();
+    const description = document.getElementById('description').value.trim();
+
+    if (!eventName || !organizer || !email || !chairs || !venue) {
+        return alert('❌ Please fill all required fields (*)');
+    }
+
+    const newRequest = {
+        id: Date.now(),
+        eventName,
+        organizer,
+        email,
+        chairs: parseInt(chairs),
+        venue,
+        description,
+        status: 'Pending',
+        userId,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+    };
+
+    requests.unshift(newRequest);
+    localStorage.setItem('requests', JSON.stringify(requests));
+    
+    alert('✅ Request sent to Admin! Status will update automatically.');
+    clearForm();
+    syncData();
+}
+
+function clearForm() {
+    document.getElementById('eventName').value = '';
+    document.getElementById('organizer').value = '';
+    document.getElementById('email').value = '';
+    document.getElementById('chairs').value = '';
+    document.getElementById('venue').value = '';
+    document.getElementById('description').value = '';
+}
+
+function updateStatus() {
+    const countEl = document.getElementById('myCount');
+    const statusBar = document.getElementById('statusBar');
+    countEl.textContent = myRequests.length;
+    
+    const pending = myRequests.filter(r => r.status === 'Pending').length;
+    const approved = myRequests.filter(r => r.status === 'Approved').length;
+    
+    statusBar.innerHTML = `
+        <h3>${pending} Pending | ${approved} Approved</h3>
+        <p>Last sync: ${new Date().toLocaleTimeString()}</p>
+    `;
+    statusBar.className = `status-bar ${pending > 0 ? 'Pending' : 'Approved'}`;
+}
+
+function renderRequests() {
+    const container = document.getElementById('myRequests');
+    if (myRequests.length === 0) {
+        container.innerHTML = '<div class="item"><p class="muted">No requests yet. Submit one above! 📝</p></div>';
+        return;
+    }
+    
+    container.innerHTML = myRequests.map(r => `
+        <div class='item'>
+            <div style='display:flex;justify-content:space-between;align-items:start'>
+                <div>
+                    <h3>${r.eventName}</h3>
+                    <span class='pill ${r.status}'>${r.status}</span>
+                </div>
+                <div style='text-align:right'>
+                    <div>ID: ${r.id}</div>
+                    <div>${new Date(r.updatedAt).toLocaleDateString()}</div>
+                </div>
+            </div>
+            <div class='meta'>
+                <div><b>👤</b> ${r.organizer}</div>
+                <div><b>📧</b> ${r.email}</div>
+                <div><b>🪑</b> ${r.chairs} chairs</div>
+                <div><b>📍</b> ${r.venue}</div>
+                ${r.description ? `<div><b>📄</b> ${r.description}</div>` : ''}
+            </div>
+        </div>
+    `).join('');
+}
+
+init();
+</script>
+</body>
+</html>
